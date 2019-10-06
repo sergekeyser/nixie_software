@@ -1,0 +1,29 @@
+How to get ESP8266 powered from buspirate working:
+
+1. plugin bus pirate
+2. press enter till it mentions HI-Z>
+3. press b
+4. select option 8 (57600)
+5. change baud rate and press <space> till it mentions Hi-z> 
+6. press m
+7. select 3. UART
+8. select 8. 57600
+9. press enter till it says uart>
+10. Connect jumper on board to set GPIO0 to low (to enter boodloader mode on start up)
+10. Switch on power using W (red power led on board should come up)
+11. set upload speed (tools -> uploadspeed) in arduino ide to 57600
+12. press upload
+13. once uploaded it mentions in the command line:
+			Leaving...
+			Hard resetting via RTS pin...
+14. Remove the bus pirate and remove the jumper from GPIO0
+15. plugin bus pirate
+16. press enter till it mentions HI-Z>
+17. press b
+18. select option 8 (57600)
+19. change baud rate and press <space> till it mentions Hi-z> 
+20. press m
+21. select 3. UART
+22. select 8. 57600 (or any other speed as configured in the arduino sketch)
+23. press W to power on the esp8266
+23. you should now see the messages in the terminal.
