@@ -4,45 +4,49 @@
 #include <ESP8266mDNS.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-
 #include <Wire.h>
 
-
+//define access point
 #ifndef STASSID
 #define STASSID "tickle_me2"
 #define STAPSK  "elmo1985"
 #endif
 
+//define i2c address for the different nixies
+#define nixie_s1 B0100000
+#define nixie_s2 B0100001
 
-#define DEVICE_1 B0100000
-#define DEVICE_2 B0100001  
+#define nixie_m1 B0100010
+#define nixie_m2 B0100011
 
+#define nixie_h1 B0100100
+#define nixie_h2 B0100101
+
+//define i2c io ports
+#define I2C_SDA 2
+#define I2C_SCL 13
+
+//global constants
 const char* ssid = STASSID;
 const char* password = STAPSK;
 const long utcOffsetInSeconds = 3600;
-
-
-char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 bool PCFOutput = true;
 
 unsigned long previousMillis = 0;    
 const long interval = 10000;
 
+//global variables
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", utcOffsetInSeconds);
 
 ESP8266WebServer server(80);
 
-
+void handleAbout() {
+  String message = "{'madeby':'sergekeyser@gmail.com'}";
+  server.send(200, "application/json", message );
+}
 
 void handleRoot() {
-  
-  if(PCFOutput)
-   IOexpanderWrite(DEVICE_1, 0x00 );
-  else
-   IOexpanderWrite(DEVICE_1, 0x01 );
-  PCFOutput = !PCFOutput;
-   Serial.println(PCFOutput);
   String message = "{'time':'" + timeClient.getFormattedTime() + "'}";
   server.send(200, "application/json", message );
 }
@@ -60,51 +64,50 @@ void handleNotFound() {
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
   server.send(404, "text/plain", message);
- 
 }
 
 void setup(void) {
- 
   
+  //start serial
   Serial.begin(57600);
+  
+  //start wifi
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("");
 
-  // Wait for connection
+  //wait for connection
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  
-  
-  
-  Serial.println("");
+    
   Serial.print("Connected to ");
-  Serial.println(ssid);
+  Serial.print(ssid);
   Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  if (MDNS.begin("esp8266")) {
+  Serial.print(WiFi.localIP());
+  
+  //start mdns protocol
+  if (MDNS.begin("nixie")) {
     Serial.println("MDNS responder started");
   }
-  Serial.println("Start Scanning I2C");
-  
 
-  timeClient.begin();
+  //define available endpoints
   server.on("/", handleRoot);
+  server.on("/about", handleAbout);
 
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
-  });
-
+  //define what to do if the requested endpoint is not defined in the above list
   server.onNotFound(handleNotFound);
 
+  //start http server
   server.begin();
-  Serial.println("HTTP server started");
   
-  Wire.begin(2, 13); //GPIO2 and 13
-  IOexpanderWrite(DEVICE_1, 0x0F);
+  //start the NTP client
+  timeClient.begin();
+  Serial.println("NTP Service started");
+    
+  //initialize the i2c service
+  Wire.begin(I2C_SDA, I2C_SCL); 
 }
 
 void IOexpanderWrite(byte address, byte _data ) 
@@ -113,10 +116,6 @@ void IOexpanderWrite(byte address, byte _data )
  Wire.beginTransmission(address);
  Wire.write(_data);
  error = Wire.endTransmission(); 
- if(error == 0)
-  Serial.println("transmission, no error");
- else
-  Serial.println("Transmission error"+error);
 }
 
 byte IOexpanderRead(int address) 
@@ -132,9 +131,6 @@ byte IOexpanderRead(int address)
 void loop(void) {
   server.handleClient();
   MDNS.update();
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-      timeClient.update();
-    }
+  //updates every 60 seconds (even though it is called more often)
+  timeClient.update();
 }
